@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use axum::{
-    body::HttpBody,
     extract::Query,
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -14,7 +13,7 @@ use sqlx::SqlitePool;
 use crate::{
     algos::{AlgoHandlers, Context},
     config::Config,
-    lexicon::{AtUri, app::bsky::feed::get_feed_skeleton},
+    lexicon::{app::bsky::feed::get_feed_skeleton, AtUri},
 };
 
 async fn feed_generation(
@@ -24,10 +23,14 @@ async fn feed_generation(
     Query(params): Query<get_feed_skeleton::QueryParams>,
 ) -> Response {
     let Ok(feed_uri): Result<AtUri, _> = params.feed.parse() else {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({
-            "error": "InvalidRequest",
-            "message": "Error: feed must be a valid at-uri",
-        }))).into_response();
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "InvalidRequest",
+                "message": "Error: feed must be a valid at-uri",
+            })),
+        )
+            .into_response();
     };
 
     if let (true, true, Some(algo)) = (
@@ -39,10 +42,7 @@ async fn feed_generation(
         feed_uri.rkey.and_then(|name| algos.get(&name)),
     ) {
         match algo.handle(Context { db, config }, params).await {
-            Ok(body) => (
-                StatusCode::OK,
-                Json(serde_json::json!(body)),
-            ),
+            Ok(body) => (StatusCode::OK, Json(serde_json::json!(body))),
             Err(e) => {
                 error!("Failed to generate feed - {e:?}");
 
@@ -68,10 +68,10 @@ async fn feed_generation(
     }
 }
 
-pub fn create_router<B: HttpBody + Send + 'static, S: Clone + Send + Sync + 'static>(
+pub fn create_router<S: Clone + Send + Sync + 'static>(
     config: &Config,
     algos: AlgoHandlers,
-) -> Router<S, B> {
+) -> Router<S> {
     let feeds = algos
         .keys()
         .map(|shortname| {

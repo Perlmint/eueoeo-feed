@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 
 use axum::{
-    body::HttpBody,
     response::{
         sse::{Event, KeepAlive},
         Sse,
@@ -12,8 +11,7 @@ use axum::{
 use crossbeam::channel::Receiver;
 use futures_util::{stream, Stream};
 
-pub fn create_router<B: HttpBody + Send + 'static, S: Clone + Send + Sync + 'static>(
-) -> Router<S, B> {
+pub fn create_router<S: Clone + Send + Sync + 'static>() -> Router<S> {
     async fn sse_handler(
         Extension(channel): Extension<Receiver<String>>,
     ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {

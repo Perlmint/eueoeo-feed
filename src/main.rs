@@ -63,13 +63,13 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     let subscription_join = subscription.run()?;
 
-    let server = axum::Server::bind(
+    let listener = tokio::net::TcpListener::bind(
         &((config.listen_host.as_str(), config.port)
             .to_socket_addrs()
             .map_err(|_| anyhow!("Not a valid listen_host/port"))?
             .next()
             .unwrap()),
-    );
+    ).await?;
 
     let algos = algos::create();
 
@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(Extension(db_pool))
         .layer(Extension(receiver))
         .layer(Extension(Arc::new(config)));
-    let server = server.serve(app.into_make_service());
+    let server = axum::serve(listener, app.into_make_service());
 
     let (stop_sender, stop_receiver) = tokio::sync::oneshot::channel();
 

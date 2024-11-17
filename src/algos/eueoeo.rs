@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use async_trait::async_trait;
+use chrono::Utc;
 
 use crate::{data::Post, lexicon::app::bsky::feed::get_feed_skeleton};
 
@@ -23,9 +24,8 @@ impl AlgoHandler for Handler {
             let time = indexed_at
                 .parse::<i64>()
                 .context("malformed cursor - invalid indexedAt part")?;
-            let time = chrono::NaiveDateTime::from_timestamp_millis(time)
+            let time = chrono::DateTime::<Utc>::from_timestamp_millis(time)
                 .context("malformed cursor - invalid indexedAt part")?
-                .and_utc()
                 .to_rfc3339();
 
             sqlx::query_as!(
@@ -60,7 +60,11 @@ impl AlgoHandler for Handler {
         };
 
         let cursor = feed.last().map(|last| {
-            let timestamp = chrono::DateTime::parse_from_rfc3339(unsafe { last.indexedAt.as_ref().unwrap_unchecked() }).unwrap().timestamp_millis();
+            let timestamp = chrono::DateTime::parse_from_rfc3339(unsafe {
+                last.indexedAt.as_ref().unwrap_unchecked()
+            })
+            .unwrap()
+            .timestamp_millis();
             format!(
                 "{}::{}",
                 timestamp,

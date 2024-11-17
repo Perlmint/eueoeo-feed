@@ -1,9 +1,7 @@
 use crate::config::Config;
-use axum::{body::HttpBody, response::IntoResponse, routing::get, Json, Router};
+use axum::{response::IntoResponse, routing::get, Json, Router};
 
-pub fn create_router<B: HttpBody + Send + 'static, S: Clone + Send + Sync + 'static>(
-    config: &Config,
-) -> Router<S, B> {
+pub fn create_router<S: Clone + Send + Sync + 'static>(config: &Config) -> Router<S> {
     let service_endpoint = format!("https://{}", config.host_name);
     let did = Json(serde_json::json!({
         "@context": [

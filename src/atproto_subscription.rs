@@ -82,7 +82,7 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
             url.query_pairs_mut()
                 .append_pair("cursor", &cursor.to_string());
         }
-        let (stream, _) = tokio_tungstenite::connect_async(&url)
+        let (stream, _) = tokio_tungstenite::connect_async(url.to_string())
             .await
             .context("Failed to connect to service")
             .map_err(SubscriptionError::fatal)?;
