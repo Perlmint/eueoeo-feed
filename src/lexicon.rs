@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-#[derive(Debug, serde_with::DeserializeFromStr)]
+#[derive(Debug, serde_with::DeserializeFromStr, PartialEq, Eq)]
 pub struct AtUri {
     pub authority: String,
     pub collection: Option<String>,
@@ -159,12 +159,121 @@ pub mod app {
 pub mod com {
     pub mod atproto {
         pub mod repo {
+            use std::str::FromStr;
+
             use crate::lexicon::AtUri;
 
-            #[derive(Debug, serde::Deserialize)]
-            pub struct StrongRef {
-                pub uri: AtUri,
-                pub cid: String,
+            #[derive(Debug, PartialEq, Eq)]
+            pub enum StrongRef {
+                Valid { uri: AtUri, cid: String },
+                Invalid,
+            }
+
+            impl<'de> serde::Deserialize<'de> for StrongRef {
+                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+                where
+                    D: serde::Deserializer<'de>,
+                {
+                    const FIELDS: &[&str] = &["uri", "cid"];
+
+                    struct Visitor;
+
+                    impl<'de> serde::de::Visitor<'de> for Visitor {
+                        type Value = StrongRef;
+
+                        fn expecting(
+                            &self,
+                            formatter: &mut std::fmt::Formatter,
+                        ) -> std::fmt::Result {
+                            formatter.write_str("struct with uri, cid fields")
+                        }
+
+                        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+                        where
+                            A: serde::de::MapAccess<'de>,
+                        {
+                            let mut cid: Option<String> = None;
+                            let mut uri: Option<String> = None;
+                            while let Some(key) = map.next_key()? {
+                                match key {
+                                    "cid" => {
+                                        if cid.is_some() {
+                                            return Err(serde::de::Error::duplicate_field("cid"));
+                                        }
+                                        cid = Some(map.next_value()?)
+                                    }
+                                    "uri" => {
+                                        if uri.is_some() {
+                                            return Err(serde::de::Error::duplicate_field("uri"));
+                                        }
+                                        uri = Some(map.next_value()?)
+                                    }
+                                    "$type" => {
+                                        let r#type: String = map.next_value()?;
+                                        const TYPE: &str = "com.atproto.repo.strongRef";
+                                        if r#type != TYPE {
+                                            return Err(serde::de::Error::invalid_value(
+                                                serde::de::Unexpected::Str(&r#type),
+                                                &TYPE,
+                                            ));
+                                        }
+                                    }
+                                    _ => {
+                                        return Err(serde::de::Error::unknown_field(key, FIELDS));
+                                    }
+                                }
+                            }
+
+                            let Some(cid) = cid else {
+                                return Err(serde::de::Error::missing_field("cid"));
+                            };
+                            let Some(uri) = uri else {
+                                return Err(serde::de::Error::missing_field("uri"));
+                            };
+                            let Ok(uri) = AtUri::from_str(&uri) else {
+                                return Ok(StrongRef::Invalid);
+                            };
+
+                            return Ok(StrongRef::Valid { uri, cid });
+                        }
+                    }
+
+                    deserializer.deserialize_struct("StrongRef", FIELDS, Visitor)
+                }
+            }
+
+            #[test]
+            fn test_parse_strong_ref() {
+                assert_eq!(
+                    serde_json::from_str::<StrongRef>(r#"{"cid":"","uri":"at://example.com"}"#)
+                        .unwrap(),
+                    StrongRef::Valid {
+                        uri: AtUri {
+                            authority: "example.com".to_string(),
+                            collection: None,
+                            rkey: None
+                        },
+                        cid: "".to_string(),
+                    }
+                );
+
+                assert_eq!(
+                    serde_json::from_str::<StrongRef>(r#"{"$type":"com.atproto.repo.strongRef","cid":"","uri":"at://example.com"}"#)
+                        .unwrap(),
+                    StrongRef::Valid {
+                        uri: AtUri {
+                            authority: "example.com".to_string(),
+                            collection: None,
+                            rkey: None
+                        },
+                        cid: "".to_string(),
+                    }
+                );
+
+                assert_eq!(
+                    serde_json::from_str::<StrongRef>(r#"{"cid":"","uri":""}"#).unwrap(),
+                    StrongRef::Invalid
+                );
             }
         }
         pub mod sync {
