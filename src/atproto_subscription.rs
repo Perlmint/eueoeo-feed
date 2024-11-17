@@ -200,6 +200,7 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
         )
         .execute(&self.db)
         .await?;
+        info!("Cursor updated: {cursor}");
 
         Ok(())
     }

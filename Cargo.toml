@@ -15,6 +15,7 @@ crossbeam = { version = "0.8.2", features = ["crossbeam-channel"] }
 env_logger = "0.11.5"
 futures-channel = "0.3.28"
 futures-util = "0.3.28"
+itertools = "0.13.0"
 log = "0.4.19"
 phf = "0.11.2"
 rs-car = "0.4.1"

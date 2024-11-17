@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use crossbeam::channel::Sender;
 use futures_util::io::Cursor;
-use log::debug;
+use log::{debug, warn};
 use sqlx::SqlitePool;
 
 use crate::atproto_subscription::FirehoseSubscriptionHandler;
@@ -51,12 +51,12 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
             return Ok(());
         };
 
-        let Some(blocks) = event.blocks else {
+        let Some(blocks_bytes) = event.blocks else {
             debug!("drop no-blocks commit event");
             return Ok(());
         };
 
-        let mut blocks = Cursor::new(blocks);
+        let mut blocks = Cursor::new(&blocks_bytes);
         let (blocks, _header) = rs_car::car_read_all(&mut blocks, false)
             .await
             .context("Failed to parse blocks")?;
@@ -69,13 +69,26 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
                     let Some(cid) = &op.cid else {
                         continue;
                     };
-                    let block = blocks
-                        .get(cid)
-                        .ok_or_else(|| anyhow!("Cannot find block of cid on op"))?;
+                    let Some(block) = blocks.get(cid) else {
+                        warn!(
+                            "Could not find block of cid({cid}) on op. block_keys: {}",
+                            itertools::join(blocks.keys(), ", ")
+                        );
+                        continue;
+                    };
                     let item: Record =
-                        serde_ipld_dagcbor::from_slice(&block).context("Failed to parse block")?;
+                        serde_ipld_dagcbor::from_slice(&block).with_context(|| {
+                            let human_readable = if let Ok(v) =
+                                serde_ipld_dagcbor::from_slice::<serde_json::Value>(&block)
+                            {
+                                v.to_string()
+                            } else {
+                                format!("{block:?}")
+                            };
+                            format!("Failed to parse block - {human_readable}")
+                        })?;
                     if let Record::Post(post) = item {
-                        debug!("new post - {}", post.text);
+                        debug!(r#"new post [{}] - """{}""""#, author, post.text);
                         if post.text == "으어어" {
                             let uri = AtUri::with_auth_path(author.clone(), op.path).to_string();
                             let cid = cid.to_string();
