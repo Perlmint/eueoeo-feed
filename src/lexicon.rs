@@ -215,9 +215,7 @@ pub mod com {
                                             ));
                                         }
                                     }
-                                    _ => {
-                                        return Err(serde::de::Error::unknown_field(key, FIELDS));
-                                    }
+                                    _ => { /* ignore */ }
                                 }
                             }
 
