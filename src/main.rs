@@ -11,12 +11,12 @@ use config::Config;
 use log::{error, info};
 
 mod algos;
-mod atproto_subscription;
 mod config;
 mod data;
-mod lexicon;
 mod routes;
 mod subscription;
+
+use eueoeo_feed::*;
 
 use atproto_subscription::FirehoseSubscription;
 use subscription::{ServiceSubscriptionHandler, UserProfile};
