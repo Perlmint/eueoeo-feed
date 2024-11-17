@@ -65,11 +65,9 @@ impl AlgoHandler for Handler {
             })
             .unwrap()
             .timestamp_millis();
-            format!(
-                "{}::{}",
-                timestamp,
-                unsafe { last.cid.as_ref().unwrap_unchecked() }
-            )
+            format!("{}::{}", timestamp, unsafe {
+                last.cid.as_ref().unwrap_unchecked()
+            })
         });
 
         let feed = feed

@@ -149,7 +149,8 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
 
     async fn update_cursor(&self, cursor: u64) -> anyhow::Result<()> {
         let cursor = cursor as i64;
-        sqlx::query!(r#"
+        sqlx::query!(
+            r#"
             INSERT INTO `app_state` (
                 `key`, `value`
             ) VALUES (
@@ -171,7 +172,8 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
         sqlx::query!(
             r#"
             SELECT `value` FROM `app_state` WHERE `key` = "bsky_cursor"
-        "#)
+        "#
+        )
         .fetch_optional(&self.db)
         .await
         .context("Failed to get cursor")

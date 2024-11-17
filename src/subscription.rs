@@ -34,7 +34,7 @@ pub struct ServiceSubscriptionHandler {
 }
 
 impl ServiceSubscriptionHandler {
-    pub fn new(db:SqlitePool, sse_sender: Sender<UserProfile>) -> Self {
+    pub fn new(db: SqlitePool, sse_sender: Sender<UserProfile>) -> Self {
         Self {
             db,
             sse_sender,
@@ -70,8 +70,7 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
                         serde_ipld_dagcbor::from_slice(&block).context("Failed to parse block")?;
                     if let Record::Post(post) = item {
                         if post.text == "으어어" {
-                            let uri =
-                                AtUri::with_auth_path(author.clone(), op.path).to_string();
+                            let uri = AtUri::with_auth_path(author.clone(), op.path).to_string();
                             let cid = cid.to_string();
                             let now = chrono::Utc::now().naive_utc();
                             sqlx::query!(

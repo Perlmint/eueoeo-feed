@@ -262,19 +262,24 @@ pub mod com {
                     pub fn from_cbor(tag: &str, bytes: &[u8]) -> anyhow::Result<Self> {
                         Ok(match tag {
                             "#commit" => OutputSchema::Commit(
-                                serde_ipld_dagcbor::from_slice(bytes).with_context(|| format!("tag: commit, data: {bytes:?}"))?,
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: commit, data: {bytes:?}"))?,
                             ),
                             "#handle" => OutputSchema::Handle(
-                                serde_ipld_dagcbor::from_slice(bytes).with_context(|| format!("tag: handle, data: {bytes:?}"))?,
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: handle, data: {bytes:?}"))?,
                             ),
                             "#migrate" => OutputSchema::Migrate(
-                                serde_ipld_dagcbor::from_slice(bytes).with_context(|| format!("tag: migrate, data: {bytes:?}"))?,
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: migrate, data: {bytes:?}"))?,
                             ),
                             "#tombstone" => OutputSchema::Tombstone(
-                                serde_ipld_dagcbor::from_slice(bytes).with_context(|| format!("tag: tombstone, data: {bytes:?}"))?,
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: tombstone, data: {bytes:?}"))?,
                             ),
                             "#info" => OutputSchema::Info(
-                                serde_ipld_dagcbor::from_slice(bytes).with_context(|| format!("tag: info, data: {bytes:?}"))?,
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: info, data: {bytes:?}"))?,
                             ),
                             unknown => return Err(anyhow::anyhow!("Unknown tag - {unknown}")),
                         })

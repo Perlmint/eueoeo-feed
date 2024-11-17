@@ -6,9 +6,9 @@ use std::{
 
 use anyhow::{anyhow, Context};
 use axum::Extension;
+use clap::Parser;
 use config::Config;
 use log::{error, info};
-use clap::Parser;
 
 mod algos;
 mod atproto_subscription;
@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
 
     if let Args::Login = args {
         // TODO: login and save key
-        return Ok(())
+        return Ok(());
     }
 
     let (sender, receiver) = crossbeam::channel::bounded::<UserProfile>(30);
@@ -69,7 +69,8 @@ async fn main() -> anyhow::Result<()> {
             .map_err(|_| anyhow!("Not a valid listen_host/port"))?
             .next()
             .unwrap()),
-    ).await?;
+    )
+    .await?;
 
     let algos = algos::create();
 
