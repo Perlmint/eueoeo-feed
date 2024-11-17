@@ -79,6 +79,10 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
                         if let SubscriptionError::Fatal(_) = &e {
                             let _ = subscription.stop_tx.send(true);
                             return Err(e).context("Stop subscription by fatal error");
+                        } else {
+                            const DELAY: std::time::Duration = std::time::Duration::from_secs(5);
+                            log::info!("Restart loop after {DELAY:?}");
+                            tokio::time::sleep(DELAY).await;
                         }
                     }
                 };
