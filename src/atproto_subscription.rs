@@ -5,7 +5,8 @@ use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use dagcbor::de::DeserializeOption;
 use futures_util::StreamExt;
-use log::{error, info};
+#[allow(unused_imports)]
+use log::{debug, error, info};
 use serde_ipld_dagcbor as dagcbor;
 use sqlx::SqlitePool;
 use tokio::{sync::watch, task::JoinHandle};
@@ -211,7 +212,7 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
         )
         .execute(&self.db)
         .await?;
-        info!("Cursor updated: {cursor}");
+        debug!("Cursor updated: {cursor}");
 
         Ok(())
     }
