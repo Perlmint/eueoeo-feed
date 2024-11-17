@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@atproto/repo": "^0.5.5"
+  }
+}

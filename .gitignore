@@ -104,5 +104,9 @@ $RECYCLE.BIN/
 
 # End of https://www.toptal.com/developers/gitignore/api/rust,git,osx,linux,windows
 
-db.db
+db.db*
 config.json
+*.gz
+
+node_modules
+package-lock.json
