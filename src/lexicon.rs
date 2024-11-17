@@ -279,7 +279,9 @@ pub mod com {
         pub mod sync {
             pub mod subscribe_repos {
                 use anyhow::Context;
+                use futures_util::StreamExt;
                 use rs_car::Cid;
+                use std::collections::HashMap;
 
                 pub const ID: &str = "com.atproto.sync.subscribeRepos";
 
@@ -308,9 +310,77 @@ pub mod com {
                     pub prev: Option<Cid>,
                     pub rev: String,
                     pub since: Option<String>,
-                    pub blocks: Option<serde_bytes::ByteBuf>,
+                    pub blocks: Option<CommitRawBlocks>,
                     pub ops: Vec<RepoOp>,
                     pub blobs: Vec<Cid>,
+                }
+
+                #[derive(Debug, serde::Deserialize)]
+                #[repr(transparent)]
+                pub struct CommitRawBlocks(pub serde_bytes::ByteBuf);
+
+                impl CommitRawBlocks {
+                    pub async fn parse(&self) -> Result<CommitBlocks, rs_car::CarDecodeError> {
+                        let mut blocks = futures_util::io::Cursor::new(&self.0);
+                        let mut ret = HashMap::new();
+                        let mut reader = rs_car::CarReader::new(&mut blocks, false).await?;
+                        while let Some(item) = reader.next().await {
+                            let (cid, block) = item?;
+                            ret.insert(cid, block);
+                        }
+
+                        Ok(CommitBlocks(ret))
+                    }
+                }
+
+                #[derive(Debug)]
+                #[repr(transparent)]
+                pub struct CommitBlocks(pub HashMap<Cid, Vec<u8>>);
+
+                #[derive(Debug, thiserror::Error)]
+                pub enum CommitBlockParseError {
+                    #[error("Type mismatched with target type. actual value: {0}")]
+                    InvalidParseTargetType(serde_json::Value),
+                    #[error("Failed to parse. raw value: {0:?}")]
+                    UnknownError(Vec<u8>),
+                }
+
+                impl CommitBlocks {
+                    pub fn get(&self, key: &Cid) -> Option<Result<Record, CommitBlockParseError>> {
+                        let block = self.0.get(key)?;
+                        if let Ok(ret) = serde_ipld_dagcbor::from_slice::<Record>(block) {
+                            Some(Ok(ret))
+                        } else {
+                            if let Ok(v) =
+                                serde_ipld_dagcbor::from_slice::<serde_json::Value>(block)
+                            {
+                                Some(Err(CommitBlockParseError::InvalidParseTargetType(v)))
+                            } else {
+                                Some(Err(CommitBlockParseError::UnknownError(block.clone())))
+                            }
+                        }
+                    }
+
+                    pub fn keys(&self) -> impl Iterator<Item = &Cid> {
+                        self.0.keys()
+                    }
+                }
+
+                use super::super::super::super::app::bsky;
+
+                #[derive(Debug, serde::Deserialize)]
+                #[serde(tag = "$type")]
+                pub enum Record {
+                    #[serde(rename = "app.bsky.feed.post")]
+                    Post(bsky::feed::post::Record),
+                    #[serde(rename = "app.bsky.feed.repost")]
+                    RePost(bsky::feed::repost::Record),
+                    #[serde(rename = "app.bsky.feed.like")]
+                    Like(bsky::feed::like::Record),
+                    #[serde(rename = "app.bsky.graph.follow")]
+                    Follow(bsky::graph::follow::Record),
+                    #[serde(other)]
+                    Unknown,
                 }
 
                 #[serde_with::serde_as]

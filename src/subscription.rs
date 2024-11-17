@@ -1,24 +1,14 @@
-use std::collections::HashMap;
-
-use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use crossbeam::channel::Sender;
-use futures_util::io::Cursor;
 use log::{debug, warn};
 use sqlx::SqlitePool;
 
-use crate::atproto_subscription::FirehoseSubscriptionHandler;
-
-use crate::lexicon::com::atproto::sync::subscribe_repos::RepoOpAction;
-use crate::lexicon::AtUri;
-use crate::lexicon::{
-    app::bsky::{
-        feed::{
-            like::Record as LikeRecord, post::Record as PostRecord, repost::Record as RepostRecord,
-        },
-        graph::follow::Record as FollowRecord,
+use crate::{
+    atproto_subscription::FirehoseSubscriptionHandler,
+    lexicon::{
+        com::atproto::sync::subscribe_repos::{OutputSchema as RepoEvent, Record, RepoOpAction},
+        AtUri,
     },
-    com::atproto::sync::subscribe_repos::OutputSchema as RepoEvent,
 };
 
 #[serde_with::serde_as]
@@ -54,16 +44,13 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
             return Ok(());
         };
 
-        let Some(blocks_bytes) = event.blocks else {
+        let Some(blocks) = event.blocks else {
             debug!("drop no-blocks commit event");
             return Ok(());
         };
 
-        let mut blocks = Cursor::new(&blocks_bytes);
-        let (blocks, _header) = rs_car::car_read_all(&mut blocks, false)
-            .await
-            .context("Failed to parse blocks")?;
-        let blocks: HashMap<_, _> = blocks.into_iter().collect();
+        let blocks = blocks.parse().await?;
+
         let author = event.repo;
 
         for op in event.ops {
@@ -79,17 +66,7 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
                         );
                         continue;
                     };
-                    let item: Record =
-                        serde_ipld_dagcbor::from_slice(&block).with_context(|| {
-                            let human_readable = if let Ok(v) =
-                                serde_ipld_dagcbor::from_slice::<serde_json::Value>(&block)
-                            {
-                                v.to_string()
-                            } else {
-                                format!("{block:?}")
-                            };
-                            format!("Failed to parse block - {human_readable}")
-                        })?;
+                    let item = block?;
                     if let Record::Post(post) = item {
                         debug!(r#"new post [{}] - """{}""""#, author, post.text);
                         if post.text == "으어어" {
@@ -128,31 +105,4 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
 
         Ok(())
     }
-}
-
-#[derive(Debug, serde::Deserialize)]
-#[serde(tag = "$type")]
-pub enum Record {
-    #[serde(rename = "app.bsky.feed.post")]
-    Post(PostRecord),
-    #[serde(rename = "app.bsky.feed.repost")]
-    RePost(RepostRecord),
-    #[serde(rename = "app.bsky.feed.like")]
-    Like(LikeRecord),
-    #[serde(rename = "app.bsky.graph.follow")]
-    Follow(FollowRecord),
-    #[serde(other)]
-    Unknown,
-}
-
-struct Ops<T> {
-    pub creates: Vec<T>,
-    pub deletes: Vec<T>,
-}
-
-struct OpsByType {
-    posts: Ops<PostRecord>,
-    reposts: Ops<RepostRecord>,
-    likes: Ops<LikeRecord>,
-    follows: Ops<FollowRecord>,
 }
