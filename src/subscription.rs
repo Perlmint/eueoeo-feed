@@ -12,8 +12,11 @@ use crate::atproto_subscription::FirehoseSubscriptionHandler;
 use crate::lexicon::com::atproto::sync::subscribe_repos::RepoOpAction;
 use crate::lexicon::AtUri;
 use crate::lexicon::{
-    app::bsky::feed::{
-        like::Record as LikeRecord, post::Record as PostRecord, repost::Record as RepostRecord,
+    app::bsky::{
+        feed::{
+            like::Record as LikeRecord, post::Record as PostRecord, repost::Record as RepostRecord,
+        },
+        graph::follow::Record as FollowRecord,
     },
     com::atproto::sync::subscribe_repos::OutputSchema as RepoEvent,
 };
@@ -126,6 +129,7 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
         Ok(())
     }
 }
+
 #[derive(Debug, serde::Deserialize)]
 #[serde(tag = "$type")]
 pub enum Record {
@@ -135,6 +139,8 @@ pub enum Record {
     RePost(RepostRecord),
     #[serde(rename = "app.bsky.feed.like")]
     Like(LikeRecord),
+    #[serde(rename = "app.bsky.graph.follow")]
+    Follow(FollowRecord),
     #[serde(other)]
     Unknown,
 }
@@ -146,4 +152,7 @@ struct Ops<T> {
 
 struct OpsByType {
     posts: Ops<PostRecord>,
+    reposts: Ops<RepostRecord>,
+    likes: Ops<LikeRecord>,
+    follows: Ops<FollowRecord>,
 }

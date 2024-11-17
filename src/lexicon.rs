@@ -143,6 +143,16 @@ pub mod app {
                 }
             }
         }
+        pub mod graph {
+            pub mod follow {
+                #[derive(Debug, serde::Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                pub struct Record {
+                    pub subject: String, // did
+                    pub created_at: String,
+                }
+            }
+        }
     }
 }
 
