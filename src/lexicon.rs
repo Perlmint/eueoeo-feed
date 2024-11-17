@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Debug, serde_with::DeserializeFromStr, PartialEq, Eq)]
 pub struct AtUri {
@@ -37,20 +37,17 @@ impl AtUri {
     }
 }
 
-impl ToString for AtUri {
-    fn to_string(&self) -> String {
-        use std::fmt::Write;
-
-        let mut ret = String::new();
-        write!(ret, "at://{}", self.authority).unwrap();
+impl Display for AtUri {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "at://{}", self.authority)?;
         if let Some(collection) = &self.collection {
-            write!(ret, "/{collection}").unwrap();
+            write!(f, "/{collection}")?;
             if let Some(rkey) = &self.rkey {
-                write!(ret, "/{rkey}").unwrap();
+                write!(f, "/{rkey}")?;
             }
         }
 
-        ret
+        Ok(())
     }
 }
 
@@ -234,7 +231,7 @@ pub mod com {
                                 return Ok(StrongRef::Invalid);
                             };
 
-                            return Ok(StrongRef::Valid { uri, cid });
+                            Ok(StrongRef::Valid { uri, cid })
                         }
                     }
 
@@ -350,14 +347,12 @@ pub mod com {
                         let block = self.0.get(key)?;
                         if let Ok(ret) = serde_ipld_dagcbor::from_slice::<Record>(block) {
                             Some(Ok(ret))
+                        } else if let Ok(v) =
+                            serde_ipld_dagcbor::from_slice::<serde_json::Value>(block)
+                        {
+                            Some(Err(CommitBlockParseError::InvalidParseTargetType(v)))
                         } else {
-                            if let Ok(v) =
-                                serde_ipld_dagcbor::from_slice::<serde_json::Value>(block)
-                            {
-                                Some(Err(CommitBlockParseError::InvalidParseTargetType(v)))
-                            } else {
-                                Some(Err(CommitBlockParseError::UnknownError(block.clone())))
-                            }
+                            Some(Err(CommitBlockParseError::UnknownError(block.clone())))
                         }
                     }
 
@@ -457,8 +452,9 @@ pub mod com {
                 #[derive(Debug, serde::Deserialize)]
                 #[serde(tag = "$type")]
                 pub enum OutputSchema {
+                    // Too large. Use Box
                     #[serde(rename = "com.atproto.sync.subscribeRepos#commit")]
-                    Commit(Commit),
+                    Commit(Box<Commit>),
                     #[serde(rename = "com.atproto.sync.subscribeRepos#identity")]
                     Identity(Identity),
                     #[serde(rename = "com.atproto.sync.subscribeRepos#account")]
