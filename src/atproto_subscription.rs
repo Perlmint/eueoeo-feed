@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use log::error;
 use serde_ipld_dagcbor as dagcbor;
 use sqlx::SqlitePool;
-use tokio::task::JoinHandle;
+use tokio::{sync::watch, task::JoinHandle};
 use tokio_tungstenite::tungstenite::Message;
 
 #[derive(Debug, thiserror::Error)]
@@ -38,34 +38,57 @@ pub struct FirehoseSubscription<H: Sized + Clone> {
     handler: H,
     db: SqlitePool,
     service: Arc<String>,
+    stop_rx: watch::Receiver<bool>,
+    stop_tx: Arc<watch::Sender<bool>>,
 }
 
 impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
     FirehoseSubscription<H>
 {
-    pub async fn new(db: SqlitePool, service: String, handler: H) -> anyhow::Result<Self> {
+    pub async fn new(
+        db: SqlitePool,
+        service: String,
+        handler: H,
+        stop_tx: Arc<watch::Sender<bool>>,
+    ) -> anyhow::Result<Self> {
         Ok(Self {
             handler,
             db,
             service: Arc::new(service),
+            stop_rx: stop_tx.subscribe(),
+            stop_tx,
         })
     }
 
     pub fn run(&self) -> anyhow::Result<JoinHandle<anyhow::Result<()>>> {
-        let subscription = self.clone();
+        let mut subscription = self.clone();
 
         Ok(tokio::spawn(async move {
+            if *subscription.stop_rx.borrow_and_update() {
+                return Ok(());
+            }
+
             loop {
-                if let Err(e) = subscription.loop_unit().await {
-                    error!("Subscription connect is broken. retry later: {e:?}");
-                }
+                match subscription.loop_unit().await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        break;
+                    }
+                    Err(e) => {
+                        error!("Subscription connect is broken. retry later: {e:?}");
+                        if let SubscriptionError::Fatal(_) = &e {
+                            let _ = subscription.stop_tx.send(true);
+                            return Err(e).context("Stop subscription by fatal error");
+                        }
+                    }
+                };
             }
 
             Ok(())
         }))
     }
 
-    async fn loop_unit(&self) -> Result<(), SubscriptionError> {
+    async fn loop_unit(&mut self) -> Result<bool, SubscriptionError> {
         // TODO: reconnection
         let mut url = url::Url::parse(&self.service)
             .context("Failed to parse url")
@@ -89,6 +112,15 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
         let (_tx, mut rx) = stream.split();
 
         while let Some(ret) = rx.next().await {
+            if self
+                .stop_rx
+                .has_changed()
+                .map_err(SubscriptionError::fatal)?
+                && *self.stop_rx.borrow_and_update()
+            {
+                info!("Stop processing subscription by stop signal");
+                return Ok(false);
+            }
             let message = ret
                 .context("Failed to receive message")
                 .map_err(SubscriptionError::fatal)?;
@@ -117,7 +149,7 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
             }
         }
 
-        Ok(())
+        Ok(true)
     }
 
     pub fn parse_message(data: &Vec<u8>) -> anyhow::Result<RepoEvent> {

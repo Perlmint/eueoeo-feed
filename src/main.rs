@@ -54,11 +54,14 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let (sender, receiver) = crossbeam::channel::bounded::<UserProfile>(30);
+    let (stop_sender, mut stop_receiver) = tokio::sync::watch::channel(false);
+    let stop_sender = Arc::new(stop_sender);
 
     let subscription = FirehoseSubscription::new(
         db_pool.clone(),
         config.subscription_endpoint.clone(),
         ServiceSubscriptionHandler::new(db_pool.clone(), sender),
+        stop_sender.clone(),
     )
     .await?;
     let subscription_join = subscription.run()?;
@@ -81,8 +84,6 @@ async fn main() -> anyhow::Result<()> {
         .layer(Extension(Arc::new(config)));
     let server = axum::serve(listener, app.into_make_service());
 
-    let (stop_sender, stop_receiver) = tokio::sync::oneshot::channel();
-
     tokio::task::spawn(async move {
         let sig_int = tokio::signal::ctrl_c();
         #[cfg(target_family = "windows")]
@@ -100,14 +101,16 @@ async fn main() -> anyhow::Result<()> {
             };
         }
 
-        if stop_sender.send(()).is_err() {
+        info!("Stop signalled");
+        if stop_sender.send(true).is_err() {
             error!("Already all services are stopped");
         }
     });
 
     server
         .with_graceful_shutdown(async move {
-            let _ = stop_receiver.await;
+            let _ = stop_receiver.wait_for(|v| *v).await;
+            info!("Stop web server");
         })
         .await?;
 
