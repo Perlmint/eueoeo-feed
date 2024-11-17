@@ -59,16 +59,17 @@ impl AlgoHandler for Handler {
             .await?
         };
 
-        let cursor = feed.last().map(|last| {
-            let timestamp = chrono::DateTime::parse_from_rfc3339(unsafe {
-                last.indexedAt.as_ref().unwrap_unchecked()
-            })
-            .unwrap()
-            .timestamp_millis();
-            format!("{}::{}", timestamp, unsafe {
+        let cursor = if let Some(last) = feed.last() {
+            let last_indexed_at = unsafe { last.indexedAt.as_ref().unwrap_unchecked() };
+            let timestamp = chrono::DateTime::parse_from_rfc3339(&last_indexed_at)
+                .with_context(|| last_indexed_at.clone())?
+                .timestamp_millis();
+            Some(format!("{}::{}", timestamp, unsafe {
                 last.cid.as_ref().unwrap_unchecked()
-            })
-        });
+            }))
+        } else {
+            None
+        };
 
         let feed = feed
             .into_iter()

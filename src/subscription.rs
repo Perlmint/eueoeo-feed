@@ -72,7 +72,7 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
                         if post.text == "으어어" {
                             let uri = AtUri::with_auth_path(author.clone(), op.path).to_string();
                             let cid = cid.to_string();
-                            let now = chrono::Utc::now().naive_utc();
+                            let now = chrono::Utc::now().to_rfc3339();
                             sqlx::query!(
                                 r#"
                                 INSERT INTO `post` (
