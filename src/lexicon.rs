@@ -187,10 +187,32 @@ pub mod com {
                     pub commit: Cid,
                     #[serde_as(as = "serde_with::DefaultOnError")]
                     pub prev: Option<Cid>,
-                    #[serde(with = "serde_bytes")]
-                    pub blocks: Vec<u8>,
+                    pub rev: String,
+                    pub since: Option<String>,
+                    pub blocks: Option<serde_bytes::ByteBuf>,
                     pub ops: Vec<RepoOp>,
                     pub blobs: Vec<Cid>,
+                }
+
+                #[serde_with::serde_as]
+                #[derive(Debug, serde::Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                pub struct Identity {
+                    #[serde(flatten)]
+                    pub _common: CommonPart,
+                    pub did: String,
+                    pub handle: Option<String>,
+                }
+
+                #[serde_with::serde_as]
+                #[derive(Debug, serde::Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                pub struct Account {
+                    #[serde(flatten)]
+                    pub _common: CommonPart,
+                    pub did: String,
+                    pub active: bool,
+                    pub status: Option<String>,
                 }
 
                 #[derive(Debug, serde::Deserialize)]
@@ -248,6 +270,10 @@ pub mod com {
                 pub enum OutputSchema {
                     #[serde(rename = "com.atproto.sync.subscribeRepos#commit")]
                     Commit(Commit),
+                    #[serde(rename = "com.atproto.sync.subscribeRepos#identity")]
+                    Identity(Identity),
+                    #[serde(rename = "com.atproto.sync.subscribeRepos#account")]
+                    Account(Account),
                     #[serde(rename = "com.atproto.sync.subscribeRepos#handle")]
                     Handle(Handle),
                     #[serde(rename = "com.atproto.sync.subscribeRepos#migrate")]
@@ -264,6 +290,14 @@ pub mod com {
                             "#commit" => OutputSchema::Commit(
                                 serde_ipld_dagcbor::from_slice(bytes)
                                     .with_context(|| format!("tag: commit, data: {bytes:?}"))?,
+                            ),
+                            "#identity" => OutputSchema::Identity(
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: identity, data: {bytes:?}"))?,
+                            ),
+                            "#account" => OutputSchema::Account(
+                                serde_ipld_dagcbor::from_slice(bytes)
+                                    .with_context(|| format!("tag: account, data: {bytes:?}"))?,
                             ),
                             "#handle" => OutputSchema::Handle(
                                 serde_ipld_dagcbor::from_slice(bytes)

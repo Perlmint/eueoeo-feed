@@ -4,6 +4,7 @@ use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use crossbeam::channel::Sender;
 use futures_util::io::Cursor;
+use log::debug;
 use sqlx::SqlitePool;
 
 use crate::atproto_subscription::FirehoseSubscriptionHandler;
@@ -50,7 +51,12 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
             return Ok(());
         };
 
-        let mut blocks = Cursor::new(event.blocks);
+        let Some(blocks) = event.blocks else {
+            debug!("drop no-blocks commit event");
+            return Ok(());
+        };
+
+        let mut blocks = Cursor::new(blocks);
         let (blocks, _header) = rs_car::car_read_all(&mut blocks, false)
             .await
             .context("Failed to parse blocks")?;
@@ -69,6 +75,7 @@ impl FirehoseSubscriptionHandler for ServiceSubscriptionHandler {
                     let item: Record =
                         serde_ipld_dagcbor::from_slice(&block).context("Failed to parse block")?;
                     if let Record::Post(post) = item {
+                        debug!("new post - {}", post.text);
                         if post.text == "으어어" {
                             let uri = AtUri::with_auth_path(author.clone(), op.path).to_string();
                             let cid = cid.to_string();

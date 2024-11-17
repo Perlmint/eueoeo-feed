@@ -5,7 +5,7 @@ use anyhow::{anyhow, Context};
 use async_trait::async_trait;
 use dagcbor::de::DeserializeOption;
 use futures_util::StreamExt;
-use log::error;
+use log::{error, info};
 use serde_ipld_dagcbor as dagcbor;
 use sqlx::SqlitePool;
 use tokio::{sync::watch, task::JoinHandle};
@@ -107,7 +107,7 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
         }
         let (stream, _) = tokio_tungstenite::connect_async(url.to_string())
             .await
-            .context("Failed to connect to service")
+            .with_context(|| format!("Failed to connect to service({url})"))
             .map_err(SubscriptionError::fatal)?;
         let (_tx, mut rx) = stream.split();
 
