@@ -139,7 +139,7 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
                 self.handler
                     .handle_event(event)
                     .await
-                    .map_err(SubscriptionError::recoverable)?;
+                    .map_err(SubscriptionError::fatal)?;
 
                 if let Some(cursor) = cursor {
                     self.update_cursor(cursor)
