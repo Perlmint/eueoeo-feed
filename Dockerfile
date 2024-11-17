@@ -1,19 +1,33 @@
-FROM node as builder
+FROM rust:1.70-alpine as builder
 
-RUN mkdir /ws
-WORKDIR /ws
-COPY package.json tsconfig.json /ws/
-RUN npm i --no-package-lock
-COPY src /ws/src
-RUN npm run build
+RUN apk add --no-cache \
+        musl-dev \
+        ca-certificates && \
+    update-ca-certificates
 
-FROM node:alpine
+ENV CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+RUN cargo install sqlx-cli --no-default-features --features sqlite,sqlx/runtime-tokio-rustls
 
-RUN mkdir /app
+WORKDIR /src
+
+ADD \
+    Cargo.toml \
+    .env \
+    ./
+ADD src/ ./src
+ADD migrations/ ./migrations
+
+ENV PKG_CONFIG_ALL_STATIC=1
+RUN sqlx database create && sqlx migrate run
+
+RUN cargo build --release
+
+FROM scratch
+
+COPY --from=builder /src/target/release/eueoeo-feed /app/eueoeo-feed
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
 WORKDIR /app
-COPY package.json /app/
-RUN npm i --omit dev
-COPY --from=builder /ws/dist/ /app/dist/
-
+ENV PORT=3000
 EXPOSE 3000
-CMD [ "node", "/app/dist/index.js" ]
+ENTRYPOINT [ "/app/eueoeo-feed" ]
