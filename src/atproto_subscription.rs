@@ -150,6 +150,8 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
                         .await
                         .map_err(SubscriptionError::recoverable)?;
                 }
+            } else {
+                unreachable!("text message is not available by specification");
             }
         }
 
@@ -166,13 +168,22 @@ impl<H: FirehoseSubscriptionHandler + Sized + Send + Sync + Clone + 'static>
             },
         )
         .context("Failed to parse header")?;
+
+        if header.operation == HeaderOperation::Error {
+            return Err(anyhow!("Received error operation"));
+        }
+
+        let Some(r#type) = header._type else {
+            unreachable!("When operation is OK, type must exist.");
+        };
+
         let body = &data[(cursor.position() as usize)..];
         if body.is_empty() {
             return Err(anyhow!("message has no body"));
         }
         match header.operation {
             HeaderOperation::Ok => {
-                Ok(RepoEvent::from_cbor(&header._type, body).context("Failed to parse event")?)
+                Ok(RepoEvent::from_cbor(&r#type, body).context("Failed to parse event")?)
             }
             HeaderOperation::Error => Err(anyhow::anyhow!(
                 "Error received from subscription - {}",
@@ -223,7 +234,7 @@ struct Header {
     #[serde(rename = "op")]
     pub operation: HeaderOperation,
     #[serde(rename = "t")]
-    pub _type: String,
+    pub _type: Option<String>,
 }
 
 #[derive(Debug, serde_repr::Deserialize_repr, PartialEq)]
